@@ -1,54 +1,57 @@
 import fs from 'fs';
 import path from 'path';
+import { FilterOptions } from '../scanner/routeFilter';
 
 export interface RouteWatchConfig {
-  ignore: string[];
+  appDir?: string;
+  output?: 'text' | 'json';
+  filter?: FilterOptions;
+  ignore?: string[];
 }
 
-const DEFAULT_CONFIG: RouteWatchConfig = {
-  ignore: [],
-};
+const CONFIG_FILENAMES = [
+  'routewatch.config.json',
+  'routewatch.config.js',
+  '.routewatchrc',
+];
 
-const CONFIG_FILE_NAMES = ['routewatch.config.json', '.routewatchrc'];
-
-function loadConfigFile(configPath: string): Partial<RouteWatchConfig> {
-  const raw = fs.readFileSync(configPath, 'utf-8');
-  return JSON.parse(raw) as Partial<RouteWatchConfig>;
-}
-
-function findConfigFile(): string | null {
-  for (const name of CONFIG_FILE_NAMES) {
-    const candidate = path.resolve(process.cwd(), name);
-    if (fs.existsSync(candidate)) {
-      return candidate;
-    }
+export function findConfigFile(cwd: string = process.cwd()): string | null {
+  for (const name of CONFIG_FILENAMES) {
+    const candidate = path.join(cwd, name);
+    if (fs.existsSync(candidate)) return candidate;
   }
   return null;
 }
 
-export function resolveConfig(
-  explicitPath?: string,
-  cliIgnore?: string[]
-): RouteWatchConfig {
-  let fileConfig: Partial<RouteWatchConfig> = {};
-
-  const configPath = explicitPath
-    ? path.resolve(process.cwd(), explicitPath)
-    : findConfigFile();
-
-  if (configPath) {
-    try {
-      fileConfig = loadConfigFile(configPath);
-    } catch {
-      console.warn(`Warning: could not parse config file at ${configPath}`);
-    }
+export function loadConfigFile(filePath: string): RouteWatchConfig {
+  const ext = path.extname(filePath);
+  if (ext === '.js') {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require(filePath) as RouteWatchConfig;
   }
+  const raw = fs.readFileSync(filePath, 'utf-8');
+  return JSON.parse(raw) as RouteWatchConfig;
+}
+
+export function resolveConfig(
+  cliArgs: Partial<RouteWatchConfig> = {},
+  cwd: string = process.cwd()
+): RouteWatchConfig {
+  const configPath = findConfigFile(cwd);
+  const fileConfig: RouteWatchConfig = configPath ? loadConfigFile(configPath) : {};
 
   return {
-    ignore: [
-      ...(DEFAULT_CONFIG.ignore),
-      ...(fileConfig.ignore ?? []),
-      ...(cliIgnore ?? []),
-    ],
+    appDir: cliArgs.appDir ?? fileConfig.appDir ?? path.join(cwd, 'app'),
+    output: cliArgs.output ?? fileConfig.output ?? 'text',
+    filter: {
+      ...(fileConfig.filter ?? {}),
+      ...(cliArgs.filter ?? {}),
+      excludePatterns: [
+        ...(fileConfig.filter?.excludePatterns ?? []),
+        ...(cliArgs.filter?.excludePatterns ?? []),
+        ...(fileConfig.ignore ?? []),
+        ...(cliArgs.ignore ?? []),
+      ],
+    },
   };
 }
