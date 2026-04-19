@@ -18,21 +18,28 @@ export function runWatchCommand(config: ResolvedConfig): void {
       visualize(root, config);
 
       if (config.detectDead) {
-        const dead = findDeadRoutes(root);
-        const report = buildReport(dead);
-        if (report.deadRoutes.length === 0) {
-          console.log('\n✓ No dead routes detected.');
-        } else {
-          console.log(`\n⚠ ${report.deadRoutes.length} dead route(s) found.`);
-          report.deadRoutes.forEach((r) => console.log('  -', r.path));
-        }
+        printDeadRoutesSummary(root);
       }
     } catch (err) {
-      console.error('[routewatch] Error:', err);
+      console.error('[routewatch] Error scanning routes:', (err as Error).message);
     }
   };
 
   refresh('initial');
 
   startWatcher({ appDir, debounceMs: 300 }, () => refresh('change'));
+}
+
+/**
+ * Finds dead routes from the scanned route tree and prints a summary to stdout.
+ */
+function printDeadRoutesSummary(root: unknown): void {
+  const dead = findDeadRoutes(root);
+  const report = buildReport(dead);
+  if (report.deadRoutes.length === 0) {
+    console.log('\n✓ No dead routes detected.');
+  } else {
+    console.log(`\n⚠ ${report.deadRoutes.length} dead route(s) found.`);
+    report.deadRoutes.forEach((r) => console.log('  -', r.path));
+  }
 }
