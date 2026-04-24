@@ -78,6 +78,21 @@ describe('analyzeComplexity', () => {
     const report = analyzeComplexity(root);
     expect(report.mostComplex?.path).toBe('/api/[version]/[...path]');
   });
+
+  it('computes the correct averageScore across multiple routes', () => {
+    const root = makeNode('', {
+      children: [
+        makeNode('about', { isPage: true }), // depth 1, score 1
+        makeNode('users', {
+          children: [makeNode('[id]', { isPage: true })], // depth 2 + 1 dynamic = score 4
+        }),
+      ],
+    });
+    const report = analyzeComplexity(root);
+    expect(report.routes).toHaveLength(2);
+    const expectedAverage = (1 + 4) / 2;
+    expect(report.averageScore).toBe(expectedAverage);
+  });
 });
 
 describe('formatComplexityReport', () => {
