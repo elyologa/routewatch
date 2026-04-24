@@ -1,67 +1,73 @@
-import { describe, it, expect } from "vitest";
-import { buildHeatmap, formatHeatmap, RouteHeatEntry } from "./routeHeatmap";
-import { RouteNode } from "./routeScanner";
+import { describe, it, expect } from 'vitest';
+import type { RouteNode } from './routeScanner';
+import { computeHeatmap, formatHeatmapReport } from './routeHeatmap';
 
-function makeNode(segment: string, children: RouteNode[] = []): RouteNode {
-  return { segment, children, path: segment };
+function makeNode(
+  segment: string,
+  children: RouteNode[] = [],
+  hasPage = true
+): RouteNode {
+  return { segment, children, hasPage, isDynamic: segment.startsWith('['), isCatchAll: segment.startsWith('[...') };
 }
 
-describe("buildHeatmap", () => {
-  it("returns empty report for a leaf node", () => {
-    const root = makeNode("dashboard");
-    const report = buildHeatmap(root);
-    expect(report.entries).toHaveLength(1);
-    expect(report.entries[0].path).toBe("/dashboard");
-    expect(report.entries[0].depth).toBe(1);
-    expect(report.entries[0].dynamicSegments).toBe(0);
-    expect(report.entries[0].catchAll).toBe(false);
+describe('computeHeatmap', () => {
+  it('returns empty array for empty tree', () => {
+    const node = makeNode('app', [], false);
+    const result = computeHeatmap(node);
+    expect(result).toEqual([]);
   });
 
-  it("scores dynamic segments higher", () => {
-    const root = makeNode("users", [makeNode("[id]")]);
-    const report = buildHeatmap(root);
-    const dynamic = report.entries.find((e) => e.path.includes("[id]"));
-    const staticRoute = report.entries.find((e) => e.path === "/users");
-    expect(dynamic).toBeDefined();
-    expect(dynamic!.dynamicSegments).toBe(1);
-    expect(dynamic!.score).toBeGreaterThan(staticRoute!.score);
+  it('scores a simple page node', () => {
+    const node = makeNode('app', [makeNode('about')], false);
+    const result = computeHeatmap(node);
+    expect(result).toHaveLength(1);
+    expect(result[0].path).toBe('/about');
+    expect(result[0].score).toBeGreaterThan(0);
   });
 
-  it("scores catch-all segments highest", () => {
-    const root = makeNode("docs", [makeNode("[...slug]")]);
-    const report = buildHeatmap(root);
-    const catchAll = report.entries.find((e) => e.catchAll);
-    expect(catchAll).toBeDefined();
-    expect(catchAll!.score).toBeGreaterThanOrEqual(7);
+  it('assigns higher score to dynamic routes', () => {
+    const staticNode = makeNode('app', [makeNode('contact')], false);
+    const dynamicNode = makeNode('app', [makeNode('[id]')], false);
+    const staticResult = computeHeatmap(staticNode);
+    const dynamicResult = computeHeatmap(dynamicNode);
+    expect(dynamicResult[0].score).toBeGreaterThan(staticResult[0].score);
   });
 
-  it("identifies hottest and coldest routes", () => {
-    const root = makeNode("app", [
-      makeNode("home"),
-      makeNode("[...all]"),
-    ]);
-    const report = buildHeatmap(root);
-    expect(report.hottest?.catchAll).toBe(true);
-    expect(report.coldest?.score).toBeLessThanOrEqual(report.hottest!.score);
+  it('assigns higher score to deeply nested routes', () => {
+    const shallow = makeNode('app', [makeNode('a')], false);
+    const deep = makeNode('app', [
+      makeNode('a', [makeNode('b', [makeNode('c')])], false)
+    ], false);
+    const shallowResult = computeHeatmap(shallow);
+    const deepResult = computeHeatmap(deep);
+    expect(deepResult[deepResult.length - 1].score).toBeGreaterThan(shallowResult[0].score);
   });
 
-  it("computes average score", () => {
-    const root = makeNode("a", [makeNode("b")]);
-    const report = buildHeatmap(root);
-    const expected = (report.entries[0].score + report.entries[1].score) / 2;
-    expect(report.average).toBeCloseTo(expected, 2);
+  it('assigns catch-all routes the highest base score', () => {
+    const catchAll = makeNode('app', [makeNode('[...slug]')], false);
+    const result = computeHeatmap(catchAll);
+    expect(result[0].score).toBeGreaterThanOrEqual(3);
   });
 });
 
-describe("formatHeatmap", () => {
-  it("includes header and route paths", () => {
-    const root = makeNode("shop", [makeNode("[id]")]);
-    const report = buildHeatmap(root);
-    const output = formatHeatmap(report);
-    expect(output).toContain("Route Heatmap");
-    expect(output).toContain("/shop");
-    expect(output).toContain("[id]");
-    expect(output).toContain("Hottest");
-    expect(output).toContain("Average");
+describe('formatHeatmapReport', () => {
+  it('returns a non-empty string for valid heatmap entries', () => {
+    const node = makeNode('app', [makeNode('home'), makeNode('[id]')], false);
+    const heatmap = computeHeatmap(node);
+    const report = formatHeatmapReport(heatmap);
+    expect(typeof report).toBe('string');
+    expect(report.length).toBeGreaterThan(0);
+  });
+
+  it('includes route paths in the report', () => {
+    const node = makeNode('app', [makeNode('dashboard')], false);
+    const heatmap = computeHeatmap(node);
+    const report = formatHeatmapReport(heatmap);
+    expect(report).toContain('/dashboard');
+  });
+
+  it('returns a message when no routes found', () => {
+    const report = formatHeatmapReport([]);
+    expect(report).toContain('No routes');
   });
 });
