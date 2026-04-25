@@ -28,6 +28,10 @@ describe("buildPath", () => {
       "/dashboard/settings"
     );
   });
+
+  it("builds path for dynamic segment", () => {
+    expect(buildPath(makeNode("[id]"), "/shop")).toBe("/shop/[id]");
+  });
 });
 
 describe("collectDependencies", () => {
@@ -54,6 +58,20 @@ describe("collectDependencies", () => {
     expect(result[0].dependsOn).toContain("/home");
     fs.rmSync(tmpDir, { recursive: true });
   });
+
+  it("does not include routes that are not imported", () => {
+    const tmpDir = makeTempDir();
+    const pageDir = path.join(tmpDir, "shop");
+    fs.mkdirSync(pageDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(pageDir, "page.tsx"),
+      `import Foo from '@/app/home/page';`
+    );
+    const node = makeNode("shop");
+    const result = collectDependencies(node, tmpDir, ["/home", "/cart"]);
+    expect(result[0].dependsOn).not.toContain("/cart");
+    fs.rmSync(tmpDir, { recursive: true });
+  });
 });
 
 describe("buildDependencyGraph", () => {
@@ -65,6 +83,16 @@ describe("buildDependencyGraph", () => {
     const graph = buildDependencyGraph(nodes);
     expect(graph.edges).toHaveLength(1);
     expect(graph.edges[0]).toEqual({ from: "/shop", to: "/home" });
+  });
+
+  it("creates multiple edges when a route depends on several routes", () => {
+    const nodes: RouteDependency[] = [
+      { route: "/checkout", imports: [], dependsOn: ["/home", "/cart"] },
+      { route: "/home", imports: [], dependsOn: [] },
+      { route: "/cart", imports: [], dependsOn: [] },
+    ];
+    const graph = buildDependencyGraph(nodes);
+    expect(graph.edges).toHaveLength(2);
   });
 });
 
