@@ -59,6 +59,17 @@ describe('detectOrphans', () => {
     expect(report.total).toBe(1);
     expect(report.orphans[0].segment).toBe('shop');
   });
+
+  it('detects orphans in deeply nested routes', () => {
+    const root = makeNode('app', ['page.tsx'], [
+      makeNode('users', ['page.tsx'], [
+        makeNode('profile', []),
+      ]),
+    ]);
+    const report = detectOrphans([root]);
+    expect(report.total).toBe(1);
+    expect(report.orphans[0].routePath).toBe('/app/users/profile');
+  });
 });
 
 describe('formatOrphanReport', () => {
