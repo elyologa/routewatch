@@ -45,3 +45,33 @@ export function renderTree(roots: RouteNode[], options: RenderOptions = {}): str
   renderChildren(roots, '', dead, useColor, lines);
   return lines.join('\n');
 }
+
+/**
+ * Returns a summary line describing the total number of routes and how many
+ * are considered dead, e.g. "12 routes (3 dead)".
+ */
+export function renderSummary(roots: RouteNode[], options: RenderOptions = {}): string {
+  const dead = options.deadRoutes ?? new Set<string>();
+  const useColor = options.useColor ?? true;
+
+  let total = 0;
+  let deadCount = 0;
+
+  function walk(nodes: RouteNode[]): void {
+    for (const node of nodes) {
+      if (node.isPage) {
+        total++;
+        if (dead.has(node.path)) deadCount++;
+      }
+      walk(node.children);
+    }
+  }
+
+  walk(roots);
+
+  const deadPart = deadCount > 0 ? ` (${deadCount} dead)` : '';
+  const summary = `${total} route${total !== 1 ? 's' : ''}${deadPart}`;
+
+  if (!useColor || deadCount === 0) return summary;
+  return summary.replace(`${deadCount} dead`, `\x1b[31m${deadCount} dead\x1b[0m`);
+}
