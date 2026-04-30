@@ -34,6 +34,16 @@ describe('compareRoutes', () => {
     expect(diff.added).toHaveLength(0);
     expect(diff.removed).toHaveLength(0);
   });
+
+  it('detects multiple added and removed routes simultaneously', () => {
+    const prev = [makeNode('home', '/home'), makeNode('about', '/about')];
+    const curr = [makeNode('home', '/home'), makeNode('contact', '/contact'), makeNode('faq', '/faq')];
+    const diff = compareRoutes(prev, curr);
+    expect(diff.added).toContain('/contact');
+    expect(diff.added).toContain('/faq');
+    expect(diff.removed).toContain('/about');
+    expect(diff.unchanged).toContain('/home');
+  });
 });
 
 describe('formatDiff', () => {
