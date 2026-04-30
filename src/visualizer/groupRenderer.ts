@@ -7,11 +7,12 @@ function formatRoute(path: string, isDead: boolean): string {
   return `  ${icon} ${label}`;
 }
 
+function formatPrefix(prefix: string): string {
+  return prefix === "*" ? chalk.yellow("(ungrouped)") : chalk.cyan.bold(prefix);
+}
+
 export function renderGroup(group: RouteGroup): string {
-  const header =
-    group.prefix === "*"
-      ? chalk.yellow("(ungrouped)")
-      : chalk.cyan.bold(group.prefix);
+  const header = formatPrefix(group.prefix);
 
   const lines = [header];
   for (const route of group.routes) {
